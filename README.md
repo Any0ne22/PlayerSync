@@ -1,2 +1,2 @@
 # PlayerSync
-Synchronise video players in a web browser
+Synchronize video players in a web browser
