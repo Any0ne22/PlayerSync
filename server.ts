@@ -89,7 +89,7 @@ async function watchSocket(ws: WebSocket) {
 
 
 // #### Web server ####
-const port = 80;
+const port = 8000;
 const app = new Application();
 const router = new Router();
 
@@ -107,7 +107,7 @@ app.use(router.allowedMethods());
 app.use(router.routes());
  
 app.addEventListener('listen', () => {
-  console.log(`Listening on: localhost:${port}`);
+  console.log(`Welcome to WatchTogether server !\nListening on: localhost:${port}`);
 });
  
 await app.listen({ port });

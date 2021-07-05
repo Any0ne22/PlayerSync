@@ -1,9 +1,9 @@
 // Parameters
-let websocketLink = "ws://127.0.0.1:80/ws";
+let websocketLink = "ws://127.0.0.1:8000/ws";
 
 chrome.storage.local.get(['server'], function(result) {
     if(!result.server) {
-        chrome.storage.local.set({server: "ws://127.0.0.1:80/ws"})
+        chrome.storage.local.set({server: "ws://127.0.0.1:8000/ws"})
     } else {
         websocketLink = result.server;
     }
