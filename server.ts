@@ -2,7 +2,11 @@ import { Application, Router, Context } from 'https://deno.land/x/oak@v7.7.0/mod
 import { isWebSocketCloseEvent, WebSocket } from "https://deno.land/std@0.100.0/ws/mod.ts";
 import { v4 } from "https://deno.land/std@0.100.0/uuid/mod.ts";
   
+// #### Parameters ####
+const port = 8000;
+const version = "1.0.0";
 
+// #### Room management ####
 
 interface Room {
     name : string;
@@ -89,14 +93,18 @@ async function watchSocket(ws: WebSocket) {
 
 
 // #### Web server ####
-const port = 8000;
 const app = new Application();
 const router = new Router();
 
 router.get('/', (ctx) => {
-    ctx.response.body = "Backend";
+    ctx.response.body = "Backend WatchTogether";
 });
- 
+
+router.get('/info', (ctx) => {
+    ctx.response.headers.set("Content-Type", "application/json");
+    ctx.response.body = {version : version, active_users: sockets.size, active_rooms: rooms.size};
+});
+
 router.get('/ws', async (ctx : Context) => {
     // Websocket route
     const sock = await ctx.upgrade();
@@ -107,7 +115,7 @@ app.use(router.allowedMethods());
 app.use(router.routes());
  
 app.addEventListener('listen', () => {
-  console.log(`Welcome to WatchTogether server !\nListening on: localhost:${port}`);
+  console.log(`Welcome to WatchTogether v${version} server !\nListening on: localhost:${port}`);
 });
  
 await app.listen({ port });

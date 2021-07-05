@@ -59,8 +59,8 @@ class Player {
 
         socket.onerror = function(_event) {
             notif(`Error connecting to room ${roomName} (server @ ${websocketLink})`);
-            socket.close();
             room = '';
+            socket.close();
         }
     }
 
