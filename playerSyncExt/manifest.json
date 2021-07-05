@@ -1,0 +1,30 @@
+{
+    "manifest_version": 2,
+    "name": "Player sync",
+    "description": "Synchronize video players",
+    "version": "1.0",
+    "browser_action": {
+        "default_icon": "128x128.png",
+        "default_popup": "popup.html"
+    },
+    "icons" : {
+        "128": "128x128.png"
+    },
+    "permissions": [
+        "notifications",
+        "storage",
+        "activeTab",
+        "*://*/*"
+    ],
+    "content_scripts": [
+        {
+          "matches": [
+                "*://*/*"
+            ],
+          "js": ["content-script.js"]
+        }
+    ],
+    "background": {
+        "scripts" : ["back.js"]
+    }
+}
