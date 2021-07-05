@@ -9,7 +9,7 @@ chrome.storage.local.get(['server'], function(result) {
     }
 });
 
-chrome.storage.onChanged.addListener(function (changes, namespace) {
+chrome.storage.onChanged.addListener(function (changes) {
     for (const [key, { newValue }] of Object.entries(changes)) {
       if(key == "server") {
         websocketLink = newValue;
@@ -42,6 +42,7 @@ class Player {
         const socket = new WebSocket(websocketLink);
         const port = this.port;
         this.websocket = socket;
+        const room = this.roomName;
         // #### Websocket events ####
         socket.onopen = function () {
             socket.send(JSON.stringify({event: "join_room", data: {roomName : roomName}}));
@@ -55,12 +56,18 @@ class Player {
                 port.postMessage(parsedData);
             }
         }
+
+        socket.onerror = function(_event) {
+            notif(`Error connecting to room ${roomName} (server @ ${websocketLink})`);
+            socket.close();
+            room = '';
+        }
     }
 
     quitRoom() {
         this.roomName = "";
         this.websocket.close();
-        init = false;
+        this.init = false;
     }
 }
 
