@@ -24,7 +24,7 @@ function joinRoom(roomName : string, uid : string, userSocket : WebSocket) : Roo
     }
     room.users.set(uid, userSocket);
     broadcast2room(roomName, {action : "room_joined", users: room.users.size});
-    console.log(`Room ${roomName} joined by ${uid} (${room.users.size})`);
+    console.log(`<${roomName}> Room ${roomName} joined by ${uid} (${room.users.size} users connected)`);
     return room;
 }
 
@@ -37,7 +37,7 @@ function quitRoom(roomName: string, uid: string){
     } else {
         rooms.delete(roomName);
     }
-    console.log(`Room ${roomName} quitted`);
+    console.log(`<${roomName}> Room ${roomName} quitted by ${uid} (${room.users.size} users connected)`);
 }
 
 function _broadcast(message: Record<string, unknown>) {
@@ -79,7 +79,7 @@ async function watchSocket(ws: WebSocket) {
   
         switch (event.event) {
             case "message":
-                console.log(`Room ${room} : ${event.data.action}`);
+                console.log(`<${room}> Room ${room} : ${JSON.stringify(event.data)}`);
                 broadcast2room(room,event.data);
                 break;
             case "join_room":
