@@ -15,7 +15,7 @@ chrome.storage.onChanged.addListener(function (changes) {
         websocketLink = newValue;
       }
     }
-  });
+});
 
 // Synced players
 const syncs = new Map();
@@ -28,6 +28,7 @@ class Player {
         this.port = port;
         this.websocket = undefined;
         this.init = false;
+        this.connectedUsers = 0;
     }
 
     initPort(room) {
@@ -43,6 +44,7 @@ class Player {
         const port = this.port;
         this.websocket = socket;
         const room = this.roomName;
+        const plr = this;
         // #### Websocket events ####
         socket.onopen = function () {
             socket.send(JSON.stringify({event: "join_room", data: {roomName : roomName}}));
@@ -54,6 +56,14 @@ class Player {
             if(["play", "pause"].includes(parsedData.action)) {
                 //forwarding to content script
                 port.postMessage(parsedData);
+            } else if(parsedData.action === "room_quitted") {
+                notif(`${room} : someone left the room (${parsedData.users} left)`);
+                plr.connectedUsers = parsedData.users;
+                sendPlayers2popup(plr.port);
+            } else if(parsedData.action === "room_joined") {
+                notif(`${room} : someone joined the room (${parsedData.users} connected)`);
+                plr.connectedUsers = parsedData.users;
+                sendPlayers2popup(plr.port);
             }
         }
 
@@ -126,7 +136,8 @@ function sendPlayers2popup(port) {
             players:  Array.from(syncs).map(([key, value]) => ({
                 id: key,
                 name: value.name,
-                roomName: value.roomName
+                roomName: value.roomName,
+                connectedUsers: value.connectedUsers
             }))
         }
     );

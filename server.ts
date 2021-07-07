@@ -4,13 +4,12 @@ import { v4 } from "https://deno.land/std@0.100.0/uuid/mod.ts";
   
 // #### Parameters ####
 const port = 8000;
-const version = "1.0.0";
+const version = "1.1.0";
 
 // #### Room management ####
 
 interface Room {
     name : string;
-    videoLink : string;
     users : Map<string, WebSocket>;
 }
 
@@ -20,12 +19,12 @@ const sockets = new Map<string, WebSocket>();
 function joinRoom(roomName : string, uid : string, userSocket : WebSocket) : Room {
     let room = rooms.get(roomName);
     if (room == undefined) {
-        room = {name: roomName, videoLink: "", users: new Map<string, WebSocket>()}
+        room = {name: roomName, users: new Map<string, WebSocket>()}
         rooms.set(roomName, room);
     }
     room.users.set(uid, userSocket);
     broadcast2room(roomName, {action : "room_joined", users: room.users.size});
-    console.log(`Room ${roomName} joined by ${uid} (${room.users.size})`);
+    console.log(`<${roomName}> Room ${roomName} joined by ${uid} (${room.users.size} users connected)`);
     return room;
 }
 
@@ -38,7 +37,7 @@ function quitRoom(roomName: string, uid: string){
     } else {
         rooms.delete(roomName);
     }
-    console.log(`Room ${roomName} quitted`);
+    console.log(`<${roomName}> Room ${roomName} quitted by ${uid} (${room.users.size} users connected)`);
 }
 
 function _broadcast(message: Record<string, unknown>) {
@@ -80,7 +79,7 @@ async function watchSocket(ws: WebSocket) {
   
         switch (event.event) {
             case "message":
-                console.log(`Room ${room} : ${event.data.action}`);
+                console.log(`<${room}> Room ${room} : ${JSON.stringify(event.data)}`);
                 broadcast2room(room,event.data);
                 break;
             case "join_room":
