@@ -10,6 +10,37 @@
   Synchronize video players between web browsers
 </p>
 
-## Installation
+## Server installation
 
-More to come...
+### Manual installation
+
+Install [Deno](https://deno.land) : see [https://github.com/denoland/deno_install](https://github.com/denoland/deno_install).
+
+Launch the server
+
+```bash
+deno run --allow-net server.ts
+```
+
+### Docker installation
+
+```bash
+docker image build . -t watchtogether
+docker run -p "8000:8000" watchtogether
+```
+
+## Client installation
+
+Go to extensions settings of any chromium browser and load the extension directory (`WatchTogetherExtension`).
+
+1) Open the Extension Management page by navigating to chrome://extensions.
+    - Alternatively, open this page by clicking on the Extensions menu button and selecting Manage Extensions at the bottom of the menu.
+    - Alternatively, open this page by clicking on the Chrome menu, hovering over More Tools then selecting Extensions
+2) Enable Developer Mode by clicking the toggle switch next to Developer mode.
+3) Click the Load unpacked button and select the extension directory.
+
+## Usage
+
+1) Connect the client to your server (Click the extension icon and do to Option)
+2) Select the tab with the player you want to sync and join a room
+3) Repeat step 2 with any player you want to sync
