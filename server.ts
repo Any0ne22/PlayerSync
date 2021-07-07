@@ -4,7 +4,7 @@ import { v4 } from "https://deno.land/std@0.100.0/uuid/mod.ts";
   
 // #### Parameters ####
 const port = 8000;
-const version = "1.0.0";
+const version = "1.1.0";
 
 // #### Room management ####
 
