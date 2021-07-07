@@ -10,7 +10,6 @@ const version = "1.0.0";
 
 interface Room {
     name : string;
-    videoLink : string;
     users : Map<string, WebSocket>;
 }
 
@@ -20,7 +19,7 @@ const sockets = new Map<string, WebSocket>();
 function joinRoom(roomName : string, uid : string, userSocket : WebSocket) : Room {
     let room = rooms.get(roomName);
     if (room == undefined) {
-        room = {name: roomName, videoLink: "", users: new Map<string, WebSocket>()}
+        room = {name: roomName, users: new Map<string, WebSocket>()}
         rooms.set(roomName, room);
     }
     room.users.set(uid, userSocket);
