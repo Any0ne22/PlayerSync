@@ -1,83 +1,132 @@
 // Parameters
-let websocketLink = "ws://127.0.0.1:8000/ws";
+const defaultWebsocketLink = "ws://127.0.0.1:8000/ws";
+let websocketLink = defaultWebsocketLink;
 
 chrome.storage.local.get(['server'], function(result) {
     if(!result.server) {
-        chrome.storage.local.set({server: "ws://127.0.0.1:8000/ws"})
+        chrome.storage.local.set({server: defaultWebsocketLink})
     } else {
         websocketLink = result.server;
     }
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
+    // Watch for changes to the server address
     for (const [key, { newValue }] of Object.entries(changes)) {
-      if(key == "server") {
-        websocketLink = newValue;
-      }
+        if(key == "server") {
+            websocketLink = newValue;
+        }
     }
 });
 
 // Synced players
-const syncs = new Map();
+const syncedPlayers = new Map();
+
 
 class Player {
-    constructor(uid, port) {
-        this.uid = uid;
+    constructor(port) {
         this.name = "";
-        this.roomName = "";
+        this.room = {
+            name: "",
+            connectedUsers: 0
+        }
         this.port = port;
         this.websocket = undefined;
         this.init = false;
-        this.connectedUsers = 0;
+
+        // #### port events ####
+        this.port.onMessage.addListener(this.portOnMessage());
+        this.port.onDisconnect.addListener(this.portOnDisconnect());
     }
 
-    initPort(room) {
-        this.roomName = room;
+    initRoom(roomName) {
+        this.room.name = roomName;
         this.port.postMessage({action : "init"});
-        this.connectSocket(room);
+        this.connectSocket();
         this.init = true;
     }
 
-    connectSocket(roomName) {
-        // Websocket initialization
-        const socket = new WebSocket(websocketLink);
-        const port = this.port;
-        this.websocket = socket;
-        const room = this.roomName;
-        const plr = this;
-        // #### Websocket events ####
-        socket.onopen = function () {
-            socket.send(JSON.stringify({event: "join_room", data: {roomName : roomName}}));
+    connectSocket() {
+        if(this.init) {
+            throw new Error("Socket already initialized");
         }
 
-        socket.onmessage = function(data) {
+        // Websocket initialization
+        this.websocket = new WebSocket(websocketLink);
+
+        // #### Websocket events ####
+        this.websocket.onopen = this.socketOnOpen();
+        this.websocket.onmessage = this.socketOnMessage();
+        this.websocket.onerror = this.socketOnError();
+    }
+
+    socketJoinRoom() {
+        this.websocket.send(JSON.stringify({event: "join_room", data: {roomName : this.room.name}}));
+    }
+
+    socketOnOpen() {
+        return () => {
+            this.socketJoinRoom();
+        }
+    }
+
+    socketOnMessage() {
+        // In arrow function 'this' is still referencing the parent of the inner function
+        return (data) => {
             const parsedData = JSON.parse(data.data);
             console.log(parsedData);
             if(["play", "pause"].includes(parsedData.action)) {
                 //forwarding to content script
-                port.postMessage(parsedData);
+                this.port.postMessage(parsedData);
             } else if(parsedData.action === "room_quitted") {
-                notif(`${room} : someone left the room (${parsedData.users} left)`);
-                plr.connectedUsers = parsedData.users;
-                sendPlayers2popup(plr.port);
+                notif(`${this.room.name} : someone left the room (${parsedData.users} left)`);
+                this.room.connectedUsers = parsedData.users;
+                sendPlayers2popup(this.port);
             } else if(parsedData.action === "room_joined") {
-                notif(`${room} : someone joined the room (${parsedData.users} connected)`);
-                plr.connectedUsers = parsedData.users;
-                sendPlayers2popup(plr.port);
+                notif(`${this.room.name} : someone joined the room (${parsedData.users} connected)`);
+                this.room.connectedUsers = parsedData.users;
+                sendPlayers2popup(this.port);
             }
         }
+    }
 
-        socket.onerror = function(_event) {
+    socketOnError() {
+        return (_event) => {
             notif(`Error connecting to room ${roomName} (server @ ${websocketLink})`);
-            room = '';
-            socket.close();
+            this.quitRoom();
+        }
+    }
+
+    portOnMessage() {
+        return (msg) => {
+            if(["play", "pause"].includes(msg.action) && this.init) {
+                // forwarding message to websocket
+                this.websocket.send(JSON.stringify({event: "message", data: msg}));
+            } else if (msg.action == "window_name") {
+                this.name = msg.value;
+            }
+            console.log(msg.action);
+        }
+    }
+
+    portOnDisconnect() {
+        return () => {
+            this.quitRoom();
         }
     }
 
     quitRoom() {
-        this.roomName = "";
-        this.websocket.close();
-        this.init = false;
+        if(this.init) {
+            try{
+                this.websocket.close();
+            } catch(_e) {
+                null;
+            }
+            notif(`${this.room.name} : disconnected from room.`);
+            this.room.name = "";
+            this.room.connectedUsers = 0;
+            this.init = false;
+        }
     }
 }
 
@@ -87,25 +136,13 @@ chrome.runtime.onConnect.addListener(function(port) {
         console.log("Player connected");
         const id = uuidv4();
 
-        const player = new Player(id, port);
-        syncs.set(id, player);
+        const player = new Player(port);
+        syncedPlayers.set(id, player);
 
-
-        // #### Port events ####
-        port.onMessage.addListener(function(msg) {
-            if(["play", "pause"].includes(msg.action)) {
-                // forwarding message to websocket
-                player.websocket.send(JSON.stringify({event: "message", data: msg}));
-            } else if (msg.action == "window_name") {
-                player.name = msg.value;
-            }
-            console.log(msg.action);
-        });
-
-        port.onDisconnect.addListener(() => {
+        // When the port is disconnected eg. the tab is closed
+        player.port.onDisconnect.addListener(() => {
             console.log("Player disconnected");
-            syncs.delete(id);
-            player.quitRoom();
+            syncedPlayers.delete(id);
         });
 
     } else if (port.name == "popup") {
@@ -117,10 +154,10 @@ chrome.runtime.onConnect.addListener(function(port) {
                     sendPlayers2popup(port);
                     break;
                 case "init_player":
-                    syncs.get(msg.playerId).initPort(msg.room);
+                    syncedPlayers.get(msg.playerId).initRoom(msg.room);
                     break;
                 case "quit_room":
-                    syncs.get(msg.playerId).quitRoom();
+                    syncedPlayers.get(msg.playerId).quitRoom();
                     break;
                 default:
                     break;
@@ -133,18 +170,18 @@ function sendPlayers2popup(port) {
     port.postMessage(
         {
             action : "player_list",
-            players:  Array.from(syncs).map(([key, value]) => ({
+            players:  Array.from(syncedPlayers).map(([key, value]) => ({
                 id: key,
                 name: value.name,
-                roomName: value.roomName,
-                connectedUsers: value.connectedUsers
+                roomName: value.room.name,
+                connectedUsers: value.room.connectedUsers
             }))
         }
     );
 }
 
 function notif(msg) {
-    new Notification('Player sync', {
+    new Notification('WatchTogether', {
         body: msg,
     });
 }
