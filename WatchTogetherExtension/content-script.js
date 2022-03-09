@@ -5,6 +5,7 @@ let tabId = -1;     // The id of the actual tab
 
 let port = chrome.runtime.connect({name: "content-port"});
 port.onMessage.addListener(function(msg) {
+    console.log(msg);
     if(msg.action == "init" && !init) {
         initPlayerSync();
     } else if(init && msg.action === "play") {
@@ -12,6 +13,8 @@ port.onMessage.addListener(function(msg) {
         if(!lock) p.play();
     } else if(init && msg.action === "pause") {
         if(!lock) p.pause();
+    } else if(init && msg.action === "change_page") {
+        if(!lock) document.location.href = msg.data.url;
     }
 });
 

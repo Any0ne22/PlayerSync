@@ -20,8 +20,9 @@ class Room:
             asyncio.ensure_future(other_user.send_json(payload))
 
     def change_page(self, user: WebSocket, new_page: str):
+        print("coucou")
         self.webpage = new_page
-        payload = {"action": "change_page", "data": new_page}
+        payload = {"action": "change_page", "data": {"url": new_page}}
         self.broadcast_to_others(user, payload)
 
     def change_time(self, user: WebSocket, time: float):
@@ -66,6 +67,8 @@ class Room:
                 self.play(user, message["time"])
             elif message["action"] == "pause":
                 self.pause(user)
+            elif message["action"] == "url_changed":
+                self.change_page(user, message["url"])
         except:
             pass
 

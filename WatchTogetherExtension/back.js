@@ -4,6 +4,7 @@ let websocketLink = "ws://127.0.0.1:8000/ws";
 // Dictionary of players (key: tabId, value: player)
 const players = {};
 
+// load the server's address from local storage
 chrome.storage.local.get(['server'], function(result) {
     if(!result.server) {
         chrome.storage.local.set({server: "ws://127.0.0.1:8000/ws"})
@@ -12,6 +13,7 @@ chrome.storage.local.get(['server'], function(result) {
     }
 });
 
+// Listen for server's address changes
 chrome.storage.onChanged.addListener(function (changes) {
     for (const [key, { newValue }] of Object.entries(changes)) {
       if(key == "server") {
@@ -26,7 +28,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     if (msg.action == "init_tab") {
         console.log(`Init tab ${sender.tab.id}`);
         sendResponse({tabId: sender.tab.id});
-     }
+    }
 });
 
 class Player {
@@ -47,17 +49,28 @@ class Player {
         this.init = true;
     }
 
+    portDisconnected() {
+        this.port = null;
+        this.init = false;
+    }
+
+    addPort(port) {
+        this.port = port;
+        this.init = true;
+    }
+
     sendUrlToServ() {
-        if(this.init) this.websocket.send(JSON.stringify({event: "url_changed", data: {url : this.url}}));
+        if(this.init) this.websocket.send(JSON.stringify({event: "message", data: {action: "url_changed",url : this.url}}));
     }
 
     connectSocket(roomName) {
         // Websocket initialization
-        const socket = new WebSocket(websocketLink);
+        this.websocket = new WebSocket(websocketLink);
         const port = this.port;
-        this.websocket = socket;
+        const socket = this.websocket;
         const room = this.roomName;
         const plr = this;
+
         // #### Websocket events ####
         socket.onopen = function () {
             socket.send(JSON.stringify({event: "join_room", data: {roomName : roomName}}));
@@ -65,10 +78,15 @@ class Player {
 
         socket.onmessage = function(data) {
             const parsedData = JSON.parse(data.data);
-            console.log(parsedData);
+            
+            // Exit if the port is not initialized
+            if(!plr.init) return;
+
             if(["play", "pause"].includes(parsedData.action)) {
                 //forwarding to content script
                 port.postMessage(parsedData);
+            } else if(parsedData.action === "change_page") {
+                //chrome.tabs.update(plr.id, { url: parsedData.url });
             } else if(parsedData.action === "room_quitted") {
                 notif(`${room} : someone left the room (${parsedData.users} left)`);
                 plr.connectedUsers = parsedData.users;
@@ -98,7 +116,6 @@ chrome.runtime.onConnect.addListener(function(port) {
     if (port.name == "content-port") {
         // Connection of a content script
         console.log("Player connected");
-        let tabId = 0
 
         let player = null;
 
@@ -109,12 +126,13 @@ chrome.runtime.onConnect.addListener(function(port) {
                 player.websocket.send(JSON.stringify({event: "message", data: msg}));
             } else if (msg.action == "init") {
                 console.log(`message de ${msg.tab}`);
-                tabId = msg.tab;
+                const tabId = msg.tab;
 
-                if(players[tabId]) {
+                // Retrieve player if it is already connected
+                // or create a new one
+                if(player = players[tabId]) {
                     console.log(`retrieving player ${tabId}`);
-                    player = players[tabId];
-                    player.port = port;
+                    player.addPort(port)
                 } else {
                     console.log(`adding player ${tabId}`);
                     player = new Player(tabId, port);
@@ -128,7 +146,7 @@ chrome.runtime.onConnect.addListener(function(port) {
                     player.url = tab.url;
                     player.sendUrlToServ();
                 }
-                
+
                 console.log(`tab ${tabId}, ${tab.title} : ${tab.url}`);
             }
             console.log(msg.action);
@@ -136,7 +154,7 @@ chrome.runtime.onConnect.addListener(function(port) {
 
         port.onDisconnect.addListener(() => {
             console.log("Player disconnected");
-            //player.quitRoom();
+            player.portDisconnected();
         });
 
     } else if (port.name == "popup") {
@@ -187,8 +205,8 @@ async function sendActiveTab(port) {
             player: {
                 id: tab.id,
                 name: tab.title,
-                roomName: player.roomName,
-                connectedUsers: player.connectedUsers
+                roomName: player ? player.roomName : "",
+                connectedUsers: player ? player.connectedUsers : 0
             }
         }
     );
