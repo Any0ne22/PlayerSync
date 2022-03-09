@@ -14,12 +14,16 @@
 
 ### Manual installation
 
-Install [Deno](https://deno.land) : see [https://github.com/denoland/deno_install](https://github.com/denoland/deno_install).
+Install dependancies
+
+```bash
+pip install -r backend/requirements.txt
+```
 
 Launch the server
 
 ```bash
-deno run --allow-net server.ts
+uvicorn backend.server:app --reload
 ```
 
 ### Docker installation
