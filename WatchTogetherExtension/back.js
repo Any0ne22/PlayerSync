@@ -82,7 +82,7 @@ class Player {
 
         socket.onerror = function(_event) {
             notif(`Error connecting to room ${roomName} (server @ ${websocketLink})`);
-            room = '';
+            this.room = '';
             socket.close();
         }
     }
@@ -143,7 +143,7 @@ chrome.runtime.onConnect.addListener(function(port) {
         // Connection of a popup script
         port.onMessage.addListener(function(msg) {
             switch (msg.action) {
-                case "get_players":
+                case "get_player":
                     // Send the player to the popup
                     sendActiveTab(port);
                     break;

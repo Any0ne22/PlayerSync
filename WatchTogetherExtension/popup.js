@@ -1,4 +1,5 @@
-let player;
+const port = chrome.runtime.connect({name: "popup"});
+let player = null;
 
 
 // Interface events
@@ -9,12 +10,12 @@ document.getElementById("sync-button").addEventListener("click", function() {
 });
 
 document.getElementById("disconnect-button").addEventListener("click", function() {
-
     port.postMessage({action: "quit_room", playerId: player.id});
     port.postMessage({action : "get_players"});
 });
 
 function showInterface(player) {
+    // Show the informations about the room
     document.getElementById("room-name").value = player.roomName;
     if (player.roomName != "") {
         document.getElementById("sync-button").style.display = "none" ;
@@ -30,7 +31,6 @@ function showInterface(player) {
     }
 }
 
-const port = chrome.runtime.connect({name: "popup"});
 port.onMessage.addListener(function(msg) {
     if(msg.action == "actual_tab") {
         player = msg.player;
@@ -39,4 +39,5 @@ port.onMessage.addListener(function(msg) {
     }
 });
 
-port.postMessage({action : "get_players"});
+// Get the actual player
+port.postMessage({action : "get_player"});

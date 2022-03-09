@@ -1,18 +1,17 @@
 let init = false;   // Is the player connected to a room
 let p = null;       // The video DOM object
-
-let tabId = -1;
+let lock = false;
+let tabId = -1;     // The id of the actual tab
 
 let port = chrome.runtime.connect({name: "content-port"});
 port.onMessage.addListener(function(msg) {
-    console.log(msg);
     if(msg.action == "init" && !init) {
         initPlayerSync();
     } else if(init && msg.action === "play") {
         p.currentTime = msg.time;
-        p.play();
+        if(!lock) p.play();
     } else if(init && msg.action === "pause") {
-        p.pause();
+        if(!lock) p.pause();
     }
 });
 
@@ -25,9 +24,11 @@ function sendMessagePromise(message) {
 }
 
 async function init_tab() {
+    // Connect to the backend to get the tab id
     let data = await sendMessagePromise({ action: "init_tab" });
     tabId = data.tabId;
 
+    // Initialize player
     await port.postMessage({action: 'init', tab: tabId});
 }
 
@@ -36,15 +37,16 @@ function initPlayerSync() {
     p = document.getElementsByTagName("video")[0];
     p.onplay = function() {
         port.postMessage({action: 'play', time: p.currentTime});
+        lock = true;
+        setTimeout(() => {lock =false}, 200);
     }
     p.onpause = function() {
         port.postMessage({action: 'pause'});
+        lock = true;
+        setTimeout(() => {lock =false}, 200);
     }
     
     init = true;
 }
 
-
-(async () => {
-    await init_tab();
-})();
+init_tab();
