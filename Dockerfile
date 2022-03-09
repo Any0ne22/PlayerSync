@@ -1,11 +1,14 @@
-FROM denoland/deno:alpine
+FROM python:3.10
 
-EXPOSE 8000
+WORKDIR /code
 
-WORKDIR /app
-USER deno
+COPY ./backend/requirements.txt /code/requirements.txt
 
-ADD server.ts .
-RUN deno cache server.ts
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-CMD ["run", "--allow-net", "server.ts"]
+COPY ./backend /code/backend
+
+
+EXPOSE 80
+
+CMD ["uvicorn", "backend.server:app", "--host", "0.0.0.0", "--port", "80"]

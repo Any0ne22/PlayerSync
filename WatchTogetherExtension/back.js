@@ -1,6 +1,9 @@
 // Parameters
 let websocketLink = "ws://127.0.0.1:8000/ws";
 
+// Dictionary of players (key: tabId, value: player)
+const players = {};
+
 chrome.storage.local.get(['server'], function(result) {
     if(!result.server) {
         chrome.storage.local.set({server: "ws://127.0.0.1:8000/ws"})
@@ -17,12 +20,18 @@ chrome.storage.onChanged.addListener(function (changes) {
     }
 });
 
-// Synced players
-const syncs = new Map();
+
+// Give a tab its number
+chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+    if (msg.action == "init_tab") {
+        console.log(`Init tab ${sender.tab.id}`);
+        sendResponse({tabId: sender.tab.id});
+     }
+});
 
 class Player {
-    constructor(uid, port) {
-        this.uid = uid;
+    constructor(id, port) {
+        this.id = id;
         this.name = "";
         this.roomName = "";
         this.port = port;
@@ -36,6 +45,10 @@ class Player {
         this.port.postMessage({action : "init"});
         this.connectSocket(room);
         this.init = true;
+    }
+
+    sendUrlToServ() {
+        if(this.init) this.websocket.send(JSON.stringify({event: "url_changed", data: {url : this.url}}));
     }
 
     connectSocket(roomName) {
@@ -59,11 +72,11 @@ class Player {
             } else if(parsedData.action === "room_quitted") {
                 notif(`${room} : someone left the room (${parsedData.users} left)`);
                 plr.connectedUsers = parsedData.users;
-                sendPlayers2popup(plr.port);
+                sendActiveTab(plr.port);
             } else if(parsedData.action === "room_joined") {
                 notif(`${room} : someone joined the room (${parsedData.users} connected)`);
                 plr.connectedUsers = parsedData.users;
-                sendPlayers2popup(plr.port);
+                sendActiveTab(plr.port);
             }
         }
 
@@ -76,7 +89,7 @@ class Player {
 
     quitRoom() {
         this.roomName = "";
-        this.websocket.close();
+        if (this.websocket) this.websocket.close();
         this.init = false;
     }
 }
@@ -85,27 +98,45 @@ chrome.runtime.onConnect.addListener(function(port) {
     if (port.name == "content-port") {
         // Connection of a content script
         console.log("Player connected");
-        const id = uuidv4();
+        let tabId = 0
 
-        const player = new Player(id, port);
-        syncs.set(id, player);
-
+        let player = null;
 
         // #### Port events ####
-        port.onMessage.addListener(function(msg) {
+        port.onMessage.addListener(async function(msg) {
             if(["play", "pause"].includes(msg.action)) {
                 // forwarding message to websocket
                 player.websocket.send(JSON.stringify({event: "message", data: msg}));
-            } else if (msg.action == "window_name") {
-                player.name = msg.value;
+            } else if (msg.action == "init") {
+                console.log(`message de ${msg.tab}`);
+                tabId = msg.tab;
+
+                if(players[tabId]) {
+                    console.log(`retrieving player ${tabId}`);
+                    player = players[tabId];
+                    player.port = port;
+                } else {
+                    console.log(`adding player ${tabId}`);
+                    player = new Player(tabId, port);
+                    players[tabId] = player;
+                }
+
+                const tab = await getTabInfos(tabId)
+
+                player.name = tab.title;
+                if(player.url != tab.url) {
+                    player.url = tab.url;
+                    player.sendUrlToServ();
+                }
+                
+                console.log(`tab ${tabId}, ${tab.title} : ${tab.url}`);
             }
             console.log(msg.action);
         });
 
         port.onDisconnect.addListener(() => {
             console.log("Player disconnected");
-            syncs.delete(id);
-            player.quitRoom();
+            //player.quitRoom();
         });
 
     } else if (port.name == "popup") {
@@ -113,14 +144,14 @@ chrome.runtime.onConnect.addListener(function(port) {
         port.onMessage.addListener(function(msg) {
             switch (msg.action) {
                 case "get_players":
-                    // Send the players list to the popup
-                    sendPlayers2popup(port);
+                    // Send the player to the popup
+                    sendActiveTab(port);
                     break;
                 case "init_player":
-                    syncs.get(msg.playerId).initPort(msg.room);
+                    players[msg.playerId].initPort(msg.room);
                     break;
                 case "quit_room":
-                    syncs.get(msg.playerId).quitRoom();
+                    players[msg.playerId].quitRoom();
                     break;
                 default:
                     break;
@@ -129,29 +160,43 @@ chrome.runtime.onConnect.addListener(function(port) {
     }
 });
 
-function sendPlayers2popup(port) {
+async function getTabInfos(tabId) {
+    return new Promise((resolve) => {
+        chrome.tabs.get(tabId, tab => {
+            resolve(tab);
+        });
+    });
+}
+
+async function getActiveTab() {
+    return new Promise((resolve) => {
+        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+            const tab = tabs[0];
+            resolve(tab);
+        });
+    });
+}
+
+async function sendActiveTab(port) {
+    const tab = await getActiveTab();
+    const player = players[tab.id];
+
     port.postMessage(
         {
-            action : "player_list",
-            players:  Array.from(syncs).map(([key, value]) => ({
-                id: key,
-                name: value.name,
-                roomName: value.roomName,
-                connectedUsers: value.connectedUsers
-            }))
+            action : "actual_tab",
+            player: {
+                id: tab.id,
+                name: tab.title,
+                roomName: player.roomName,
+                connectedUsers: player.connectedUsers
+            }
         }
     );
+    
 }
 
 function notif(msg) {
     new Notification('Player sync', {
         body: msg,
-    });
-}
-
-function uuidv4() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
     });
 }

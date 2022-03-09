@@ -1,30 +1,18 @@
-let players = [];
+let player;
 
 
 // Interface events
 document.getElementById("sync-button").addEventListener("click", function() {
-    const playerId = document.getElementById("player-selector").value;
-    const roomName = document.getElementById("room-name").value;
-
-    port.postMessage({action: "init_player", playerId: playerId, room: roomName});
+    let roomName = document.getElementById("room-name").value;
+    port.postMessage({action: "init_player", playerId: player.id, room: roomName});
     port.postMessage({action : "get_players"});
 });
 
 document.getElementById("disconnect-button").addEventListener("click", function() {
-    const playerId = document.getElementById("player-selector").value;
 
-    port.postMessage({action: "quit_room", playerId: playerId});
+    port.postMessage({action: "quit_room", playerId: player.id});
     port.postMessage({action : "get_players"});
 });
-
-document.getElementById('player-selector').onchange = function() {
-    for(const player of players) {
-        if(player.id === document.getElementById("player-selector").value) {
-            showInterface(player);
-            break;
-        }
-    }
-};
 
 function showInterface(player) {
     document.getElementById("room-name").value = player.roomName;
@@ -44,17 +32,10 @@ function showInterface(player) {
 
 const port = chrome.runtime.connect({name: "popup"});
 port.onMessage.addListener(function(msg) {
-    if(msg.action == "player_list") {
-        players = msg.players;
-        let first = true;
-        document.getElementById("player-selector").innerHTML = "";
-        for(const player of players) {
-            document.getElementById("player-selector").innerHTML += `<option value="${player.id}">${player.name}</option>`;
-            if(first){
-                showInterface(player);
-                first = false;
-            }
-        }
+    if(msg.action == "actual_tab") {
+        player = msg.player;
+        document.getElementById("player-selector").value = player.name;
+        showInterface(player);
     }
 });
 
